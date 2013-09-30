@@ -1,0 +1,6 @@
+#!/usr/bin/perl -w
+
+
+if ($#ARGV != 1) {
+   printf ("Usage: %s", $0);
+}

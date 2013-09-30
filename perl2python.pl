@@ -4,7 +4,6 @@
 @import_python_libs = ();
 
 @python_code = ();
-
 #run through each line and transform $line to python as it goes
 while ($line = <>) {
    #account for different scenarios in perl
@@ -16,8 +15,11 @@ while ($line = <>) {
       &add_lib("sys");
    
    }
+   elsif ($line =~ /^\s*(my)?\s*\$\S+\s*=/) {
+      $python_line = &_variable_dec($line);
+   }
    else {
-      $python_line = $line;
+      $python_line = "#" . $line;
    }
    #push converted python into array
    push (@python_code, $python_line);
@@ -26,17 +28,27 @@ while ($line = <>) {
 &insert_libs(@import_python_libs);
 print @python_code;
 
+sub _variable_dec() {
+   my ($line) = @_;
+   my $python_line = '';
+   $line =~ s/^\s*my\s*\$//;
+   $line =~ s/^\s*\$//;    #need to make it handle for global vars
+   $line =~ s/;\s*$//;
+   $python_line = $line . "\n";
+   return $python_line;
+}
+
 sub _print() {
    my ($line) = @_;
    chomp ($line);
    $line =~ s/\s*print\s*\(?//i;
-   my $python_line = "sys.stdout.write (";
+   my $python_line = "print ";
+   $line =~ s/;\s*$//;# removes the semicolon
    $line =~ s/("[^"]*"|\$\w+)\s*\.\s*("[^"]*"|\$\w+)/$1 + $2/g; #replace all dots for perl concat to + for python concat
    $line =~ s/("[^"]*"|\$\w+)\s*\.\s*("[^"]*"|\$\w+)/$1 + $2/g; #run regex twice because it still misses some
-   $line =~ s/\$//g;#removes all dollar signs from perl's variables
-   $line =~ s/;\s*$//;# removes the semicolon
-   #print "$line\n";
-   $python_line .= $line . ")\n";#add the ending for print
+   $line =~ s/\$(\S+)/$1/g;#removes all dollar signs from perl's variables
+   $line =~ s/\\n"\s*$/"/;
+   $python_line .= $line . "\n";#add the ending for print
    return $python_line;
 }
 

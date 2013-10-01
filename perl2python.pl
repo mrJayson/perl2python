@@ -35,25 +35,25 @@ sub _variable_dec() {
 }
 
 sub _print() {
+   my $variable_search_regex = qr/\$[^\W]+(?:\s*(?:\*|\+|\/|-|\*\*|%)\s*\$[^\W]+)*/;    #store the regex to collect variables from a string
    my ($line) = @_;
    my $python_line = "";
    $line =~ s/\\n";\s*$/";/;              #removes the ending newline in perl's version
-   my @regex_matches = ($line =~ /(".*?"|\$[^\W]+(?:\s*[+\/*-]\s*\$[^\W]+)*)/g);  
-
-   #match for each subsection of print string, contains invalid matches from extra ()
+   my @regex_matches = ($line =~ /(".*?"|$variable_search_regex)/g);  
+   #match for each subsection of print string, basically removes all concats
 
    my @var_formatting = ();
    foreach my $match (@regex_matches) {
       $python_line .= $match;             #concat all substrings into one
       $python_line =~ s/([^\\]|^)"/$1/g;  #removes all quote char
-      $python_line =~ s/([^\\]|^)"/$1/g;  #removes all quote char
+      $python_line =~ s/([^\\]|^)"/$1/g;  #removes all quote char, run twice because can't use lookbehind
       #all print strings are now one long string without concats
    }
    #print $python_line."\n";
    $python_line = "\"" . $python_line . "\"";      #adds quotes to the begin and end of whole string
-   @var_formatting = ($python_line =~ /(\$[^\W]+(?:\s*[+\/*-]\s*\$[^\W]+)*)/g); #collect variables for new formatting
+   @var_formatting = ($python_line =~ /($variable_search_regex)/g); #collect variables for new formatting
    my $i = 0;                                      #counter variable
-   $python_line =~ s/(\$[^\W]+(?:\s*[+\/*-]\s*\$[^\W]+)*)/"{".$i++."}"/eg;     #adds formatting to the string
+   $python_line =~ s/($variable_search_regex)/"{".$i++."}"/eg;     #adds formatting to the string
    $python_line .= ".format(";                     #adds the format to variables
       foreach my $var (@var_formatting) {
          $var =~ s/\$//g;

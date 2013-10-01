@@ -1,13 +1,14 @@
-$line = "line";
+#!/usr/bin/perl -w
 
-print "blah".$line."blah\n";
-print "blah".$line."blah".$line."blah"."blah\n";
-print "blah\n";
-print "blah"."blah\n";
-print $line.$line."\n";
-print $line.$line."blah\n";
-print " as;ldkfj;alk\n";
-print $line . "lksadjf;l\n";
-print "sadflkj" . $line . "test\n";
-print "b.l.a.h\n";
-print ".b.l.a.h.\n";
+$answer = "hello";
+
+print "asdlf\n";
+print "$answer " . $answer . "\n";
+print "$answer $answer$answer\n";
+print $answer . "$answer\n";
+print "$answer $answer" . "$answer\n";
+print "$answer" . $answer . "$answer\n";
+print "rewsna\n";
+print "rewsna $answer\n";
+print "$answer rewsna\n";
+print "$answer rewsna $answer\n";

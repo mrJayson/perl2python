@@ -7,6 +7,7 @@ $tab_indent = 0;
 #run through each line and transform $line to python as it goes
 $control_flow_keywords = qr/if|elsif|else|while|for|foreach/;
 $perl_syntax_convention = qr/[\$@%&]/;
+$operator_types = qr/(?:\+|\-|\*|\/|\.|%|\*\*)/;
 
 while ($line = <>) {
    #account for different scenarios in perl
@@ -16,19 +17,25 @@ while ($line = <>) {
    elsif ($line =~ /^\s*print.*/) {
       $python_line = &_print($line);
    }
-   elsif ($line =~ /^\s*(my)?\s*$perl_syntax_convention\S+\s*=/) {
-      $python_line = &_variable_operations($line);
+   elsif ($line =~ /^\s*(my)?\s*$perl_syntax_convention\S+\s*$operator_types?=/) {
+      $python_line = &_variable_assignment($line);
    }
    elsif ($line =~ /^\s*(?:$control_flow_keywords)/) {
       $python_line = &_control_flow_statement($line);
-      $tab_indent++;       #translate the if statement first, then increment the tab count
+      $tab_indent++;                                        #translate the if statement first, then increment the tab count
    }
    elsif ($line =~ /^\s*\}\s*$/) {
       $tab_indent--;
-      $python_line = "";   #python equiv is just tab decrement
+      $python_line = "";                                    #python equiv is just tab decrement
+   }
+   elsif ($line =~ /^\S*last\s*;\s*$/) {
+      $python_line = &_insert_indentation() . "break\n";    #change perl's last into python's break
    }
    elsif ($line =~ /^\s*$/) {
-      $python_line = "\n"; #empty lines require no translation!
+      $python_line = "\n";                                  #empty lines require no translation!
+   }
+   elsif ($line =~ /^\s*#/) {
+      $python_line = $line;                                 #Comments are identical, only works if they are on their own
    }
    else {
       $python_line = "#" . $line;
@@ -84,14 +91,43 @@ sub _control_flow_statement() {
    return $python_line;
 }
 
-sub _variable_operations() {
+sub _variable_assignment() {
    my ($line) = @_;
    my $python_line = &_insert_indentation();
-   $line =~ s/^\s*//g;
-   $line =~ s/$perl_syntax_convention//g;
-   $line =~ s/;\s*$//;
-   $python_line .= $line . "\n";
+   my $variable = "";
+   my $assignment_operator = "";
+   my $operation = "";
+   $line =~ /^\s*($perl_syntax_convention\S*)\s*($operator_types?=)\s*(.*);$/;      #collect and split line
+   $variable = $1;                                                                  #left side of the =
+   $assignment_operator = $2;                                                       #the [+-*/.]= operator
+   $operation = $3;                                                                 #right side of the =
+   $variable = &_variable_declaration($variable);                                   #translate the 3 parts
+   $assignment_operator = &_assignment_operation($variable, $assignment_operator);
+   $operation = &_variable_operation($operation);
+   $python_line .= "$variable$assignment_operator$operation\n";
    return $python_line;
+}
+
+sub _variable_operation() {         #handles all things to do with variable operations
+   my ($operation) = @_;
+   $operation =~ s/$perl_syntax_convention(?=\S)//g;
+   return "($operation)";
+}
+
+sub _assignment_operation() {       #expands out compound operators if need be
+   my ($variable, $assignment_operator) = @_;
+   if ($assignment_operator =~ /^($operator_types)=$/) {
+      return " = $variable $1 ";
+   }
+   else {
+      return " = ";
+   }
+}
+
+sub _variable_declaration() {       #handles variable declarations, decides where to declare the global/local stuff
+   my ($variable) = @_;
+   $variable =~ s/$perl_syntax_convention//;
+   return $variable;
 }
 
 sub _conditions() {
@@ -103,28 +139,28 @@ sub _conditions() {
 sub _string_formatting() {
    my ($line) = @_;
    my $string = "";
-   my $variable_search_regex = qr/\$[^\W]+(?:\s*(?:\*|\+|\/|-|\*\*|%)\s*\$[^\W]+)*/;    #store the regex to collect variables from a string
+   my $variable_search_regex = qr/\$[^\W]+(?:\s*(?:%|\*|\+|\/|-|\*\*)\s*\$[^\W]+)*/;    #store the regex to collect variables from a string
    my @regex_matches = ($line =~ /(".*?"|$variable_search_regex)/g);  
    #match for each subsection of print string, basically removes all concats
 
    my @var_formatting = ();
    foreach my $match (@regex_matches) {
-      $string .= $match;             #concat all substrings into one
-      $string =~ s/([^\\]|^)"/$1/g;  #removes all quote char
-      $string =~ s/([^\\]|^)"/$1/g;  #removes all quote char, run twice because can't use lookbehind
+      $string .= $match;                                    #concat all substrings into one
+      $string =~ s/([^\\]|^)"/$1/g;                         #removes all quote char
+      $string =~ s/([^\\]|^)"/$1/g;                         #removes all quote char, run twice because can't use lookbehind
       #all print strings are now one long string without concats
    }
-   $string = "\"" . $string . "\"";      #adds quotes to the begin and end of whole string
+   $string = "\"" . $string . "\"";                         #adds quotes to the begin and end of whole string
    @var_formatting = ($string =~ /($variable_search_regex)/g); #collect variables for new formatting
-   my $i = 0;                                      #counter variable
-   $string =~ s/($variable_search_regex)/"{".$i++."}"/eg;     #adds formatting to the string
-   $string .= ".format(";                     #adds the format to variables
+   my $i = 0;                                               #counter variable
+   $string =~ s/($variable_search_regex)/"{".$i++."}"/eg;   #adds formatting to the string
+   $string .= ".format(";                                   #adds the format to variables
       foreach my $var (@var_formatting) {
          $var =~ s/\$//g;
-         $string .= "$var,";                  #adding in var at a time
+         $string .= "$var,";                                #adding in var at a time
       }
       $string =~ s/,$//;
-      $string .= ")";                            #close off the format parentheses
+      $string .= ")";                                       #close off the format parentheses
       return $string;
 }
 
@@ -136,7 +172,7 @@ sub _print() {
    $line =~ s/\\n";\s*$/";/;              #removes the ending newline in perl's version
    $line =~ s/^\s*print\s*//g;            #remove to leave only string component
    $python_line .= "print " . &_string_formatting($line) . "\n";
-   return $python_line;          #add finishing touches to print line
+   return $python_line;                   #add finishing touches to print line
 }
 
 sub _insert_indentation() {

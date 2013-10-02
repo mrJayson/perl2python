@@ -5,7 +5,7 @@
 @python_code = ();
 $tab_indent = 0;
 #run through each line and transform $line to python as it goes
-$control_flow_keywords = qr/if|elsif|else|while|for|foreach/;
+$control_flow_keywords = qr/if|elsif|else|while|for(?:each)?/;
 $perl_syntax_convention = qr/[\$@%&]/;
 $operator_types = qr/(?:\+|\-|\*|\/|\.|%|\*\*)/;
 
@@ -16,6 +16,7 @@ while ($line = <>) {
    }
    elsif ($line =~ /^\s*print.*/) {
       $python_line = &_print($line);
+      &add_lib("sys");
    }
    elsif ($line =~ /^\s*(my)?\s*$perl_syntax_convention\S+\s*$operator_types?=/) {
       $python_line = &_variable_assignment($line);
@@ -28,7 +29,7 @@ while ($line = <>) {
       $tab_indent--;
       $python_line = "";                                    #python equiv is just tab decrement
    }
-   elsif ($line =~ /^\S*last\s*;\s*$/) {
+   elsif ($line =~ /^\s*last\s*;\s*$/) {
       $python_line = &_insert_indentation() . "break\n";    #change perl's last into python's break
    }
    elsif ($line =~ /^\s*$/) {
@@ -42,11 +43,9 @@ while ($line = <>) {
    }
    #push converted python into array
    push (@python_code, $python_line);
-
 }
 &insert_libs(@import_python_libs);
 print @python_code;
-
 
 sub _control_flow_statement() {
    my ($line) = @_;
@@ -60,8 +59,7 @@ sub _control_flow_statement() {
    if ($control_statement =~ /else/) {                      #else has no condition
       $python_line = $control_statement . ":\n";
    }
-   elsif ($control_statement =~ /for|foreach/) {
-      #perl for statement very versatile, so need to do it
+   elsif ($control_statement =~ /for(?:each)?/) {
       if ($condition =~ /^\(.*?;.*?;.*?\)$/) {                                   #C style for loops
          $condition =~ s/\((.*)\)/$1/;                      #remove the closing (), don't need them
          my @for_components = split(/;/, $condition);       #break into 3 parts for easier processing
@@ -76,18 +74,31 @@ sub _control_flow_statement() {
          $increment =~ s/\s//g;                             #remove any whitespaces in increment
          $python_line .= "for $var in range($begin_range, $end_range, $increment):\n";
       }
-      else {
-         $condition =~ s/(\$\w+)\s*(\(.*?\))/$1 in $2/;                          #sequence iteration style
-         $condition =~ s/[\$@]//g;
-         $python_line .= "for " . $condition . ":\n";
+      else {                                                                     #sequence iteration style
+         #types of sequences: array, range, (hash) still need to implement hash
+         $condition =~ /(\$\w+)?\s*(\(.*?\))/;              #collect condition components
+         my $control_variable = $1;
+         my $sequence = $2;
+         $control_variable =~ s/[\$]//g;     #remove perl syntax
+         $control_variable =~ s/\s*my\s*//;  #the my keyword in the control variable is not needed
+         if ($sequence =~ /\@ARGV/) {        #looping over built-in perl array
+            $sequence = "sys.argv[1:]";
+            &add_lib("sys");                 #import sys
+         }
+         elsif ($sequence =~ /([0-9]+)\s*\.\.\s*([0-9]+)/) {
+            my $begin = $1;
+            my $end = $2;
+            $end++;                                #python range is not end inclusive
+            $sequence = "xrange($begin, $end)";    #xrange does not use as much memory as range
+         }
+         $sequence =~ s/[\$@]//g;
+         $python_line .= "for " . $control_variable . " in " . $sequence . ":\n";
       }
    }
    else {
-
       $python_line .= $control_statement . " " . &_conditions($condition) . ":\n";
       $python_line =~ s/elsif/elif/;               #change perl elsif to python elif
-   }
-                                
+   }                         
    return $python_line;
 }
 
@@ -169,9 +180,8 @@ sub _print() {
    my ($line) = @_;
    chomp ($line);
    my $python_line = &_insert_indentation();
-   $line =~ s/\\n";\s*$/";/;              #removes the ending newline in perl's version
    $line =~ s/^\s*print\s*//g;            #remove to leave only string component
-   $python_line .= "print " . &_string_formatting($line) . "\n";
+   $python_line .= "sys.stdout.write(" . &_string_formatting($line) . ")\n";
    return $python_line;                   #add finishing touches to print line
 }
 

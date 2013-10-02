@@ -3,6 +3,7 @@
 @import_python_libs = ();
 
 @python_code = ();
+$tab_indent = 0;
 #run through each line and transform $line to python as it goes
 while ($line = <>) {
    #account for different scenarios in perl
@@ -11,10 +12,17 @@ while ($line = <>) {
    }
    elsif ($line =~ /^\s*print.*/) {
       $python_line = &_print($line);
-   
    }
    elsif ($line =~ /^\s*(my)?\s*\$\S+\s*=/) {
       $python_line = &_variable_dec($line);
+   }
+   elsif ($line =~ /^\s*(?:if|while)/) {
+      $python_line = &_if_or_while_statement($line);
+      $tab_indent++;       #translate the if statement first, then increment the tab count
+   }
+   elsif ($line =~ /^\s*\}\s*$/) {
+      $tab_indent--;
+      $python_line = "";
    }
    else {
       $python_line = "#" . $line;
@@ -26,42 +34,77 @@ while ($line = <>) {
 &insert_libs(@import_python_libs);
 print @python_code;
 
-sub _variable_dec() {
+sub _if_or_while_statement() {
    my ($line) = @_;
-   my $python_line = '';
-   $line =~ s/\$//g;
-   $python_line = $line . "\n";
+   chomp ($line);
+   my $python_line = &_insert_indentation();
+   $line =~ s/(if|while)\s*\((.*?)\)\s*\{/$2/;
+   $python_line .= "$1 " . &_conditions($line) . ":\n";
    return $python_line;
 }
 
-sub _print() {
-   my $variable_search_regex = qr/\$[^\W]+(?:\s*(?:\*|\+|\/|-|\*\*|%)\s*\$[^\W]+)*/;    #store the regex to collect variables from a string
+sub _variable_dec() {
    my ($line) = @_;
-   my $python_line = "";
-   $line =~ s/\\n";\s*$/";/;              #removes the ending newline in perl's version
+   my $python_line = &_insert_indentation();
+   $line =~ s/^\s*//g;
+   $line =~ s/\$//g;
+   $line =~ s/;\s*$//;
+   $python_line .= $line . "\n";
+   return $python_line;
+}
+
+sub _conditions() {
+   my ($condition) = @_;
+   $condition =~ s/\$//g;
+   return $condition;
+}
+
+sub _string_formatting() {
+   my ($line) = @_;
+   my $string = "";
+   my $variable_search_regex = qr/\$[^\W]+(?:\s*(?:\*|\+|\/|-|\*\*|%)\s*\$[^\W]+)*/;    #store the regex to collect variables from a string
    my @regex_matches = ($line =~ /(".*?"|$variable_search_regex)/g);  
    #match for each subsection of print string, basically removes all concats
 
    my @var_formatting = ();
    foreach my $match (@regex_matches) {
-      $python_line .= $match;             #concat all substrings into one
-      $python_line =~ s/([^\\]|^)"/$1/g;  #removes all quote char
-      $python_line =~ s/([^\\]|^)"/$1/g;  #removes all quote char, run twice because can't use lookbehind
+      $string .= $match;             #concat all substrings into one
+      $string =~ s/([^\\]|^)"/$1/g;  #removes all quote char
+      $string =~ s/([^\\]|^)"/$1/g;  #removes all quote char, run twice because can't use lookbehind
       #all print strings are now one long string without concats
    }
-   #print $python_line."\n";
-   $python_line = "\"" . $python_line . "\"";      #adds quotes to the begin and end of whole string
-   @var_formatting = ($python_line =~ /($variable_search_regex)/g); #collect variables for new formatting
+   $string = "\"" . $string . "\"";      #adds quotes to the begin and end of whole string
+   @var_formatting = ($string =~ /($variable_search_regex)/g); #collect variables for new formatting
    my $i = 0;                                      #counter variable
-   $python_line =~ s/($variable_search_regex)/"{".$i++."}"/eg;     #adds formatting to the string
-   $python_line .= ".format(";                     #adds the format to variables
+   $string =~ s/($variable_search_regex)/"{".$i++."}"/eg;     #adds formatting to the string
+   $string .= ".format(";                     #adds the format to variables
       foreach my $var (@var_formatting) {
          $var =~ s/\$//g;
-         $python_line .= "$var,";                  #adding in var at a time
+         $string .= "$var,";                  #adding in var at a time
       }
-      $python_line =~ s/,$//;                      #chomp off the last ","
-   $python_line .= ")";                            #close off the format parentheses
-   return "print " . $python_line . "\n";          #add finishing touches to print line
+      $string =~ s/,$//;
+      $string .= ")";                            #close off the format parentheses
+      return $string;
+}
+
+sub _print() {
+   
+   my ($line) = @_;
+   chomp ($line);
+   my $python_line = &_insert_indentation();
+   $line =~ s/\\n";\s*$/";/;              #removes the ending newline in perl's version
+   $line =~ s/^\s*print\s*//g;            #remove to leave only string component
+   $python_line .= "print " . &_string_formatting($line) . "\n";
+   return $python_line;          #add finishing touches to print line
+}
+
+sub _insert_indentation() {
+my ($indent_num) = $tab_indent;        
+   my $indent = "";             #empty indent string
+   for (; $indent_num > 0; $indent_num--) {
+      $indent .= "\t";
+   }
+   return $indent;               #to be added onto the beginning of every $python line
 }
 
 sub insert_libs() {

@@ -19,14 +19,9 @@ do
       file=`echo $file | sed s/'.pl$'/''/g`
       if [ -e "$file.input" ]
          then
-         echo "input";
-         $output1=`python <(./perl2python.pl $file.pl < $file.input)`
-         #output1=`diff <(perl $file.pl < $file.input) <(python $file.py < $file.input)`
-         #output2=`diff <(python <(./perl2python.pl $file.pl < $file.input)) <(python $file.py < $file.input)`
-         #output3=`diff <(python <(./perl2python.pl $file.pl < $file.input)) <(perl $file.pl < $file.input)`
-         #output1=`diff <(perl "$file.pl") <(python "$file.py")`
-         #output2=`diff <(./perl2python.pl "$file.pl" | python) <(python "$file.py")`
-         #output3=`diff <(./perl2python.pl "$file.pl" | python) <(perl "$file.pl")`
+         output1=`diff <(perl $file.pl < $file.input) <(python $file.py < $file.input)`
+         output2=`diff <(python <(./perl2python.pl $file.pl) < $file.input) <(python $file.py < $file.input)`
+         output3=`diff <(python <(./perl2python.pl $file.pl) < $file.input) <(perl $file.pl < $file.input)`
       else
          output1=`diff <(perl "$file.pl") <(python "$file.py")`
          output2=`diff <(./perl2python.pl "$file.pl" | python) <(python "$file.py")`

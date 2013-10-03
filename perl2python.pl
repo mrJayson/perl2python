@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-@import_python_libs = ();
+@overhead_code = ();
 
 @python_code = ();
 $tab_indent = 0;
@@ -8,18 +8,26 @@ $tab_indent = 0;
 $control_flow_keywords = qr/if|elsif|else|while|for(?:each)?/;
 $perl_syntax_convention = qr/[\$@%&]/;
 $operator_types = qr/(?:\+|\-|\*|\/|\.|%|\*\*)/;
-
+$perl_in_a_string = "";
 while ($line = <>) {
+   $perl_in_a_string .= $line;                              #concat all lines in perl file together
+}
+$perl_in_a_string =~ s/\}/}\n/;
+@perl_code = split (/(?<=\n)/, $perl_in_a_string);
+
+foreach $line (@perl_code) {
    #account for different scenarios in perl
    if ($line =~ "#!/usr/bin/perl -w") {
-      $python_line = "#!/usr/bin/python2.7 -u\n";
+      &_add_overhead_code("#!/usr/bin/python2.7 -u");
+      #$python_line = "#!/usr/bin/python2.7 -u\n";
+      $python_line = "";
    }
    elsif ($line =~ /^\s*print.*/) {
       $python_line = &_print($line);
-      &add_lib("sys");
+      &_add_overhead_code("import sys");
    }
    elsif ($line =~ /^\s*(my)?\s*$perl_syntax_convention\S+\s*$operator_types?=/) {
-      $python_line = &_variable_assignment($line);
+      $python_line = &_variable_assignment($line);          #translate variable assignments
    }
    elsif ($line =~ /^\s*(?:$control_flow_keywords)/) {
       $python_line = &_control_flow_statement($line);
@@ -32,23 +40,27 @@ while ($line = <>) {
    elsif ($line =~ /^\s*last\s*;\s*$/) {
       $python_line = &_insert_indentation() . "break\n";    #change perl's last into python's break
    }
+   elsif ($line =~ /^\s*next\s*;\s*$/) {
+      $python_line = &_insert_indentation() . "continue\n"; #change perl's next into python's continue
+   }
    elsif ($line =~ /^\s*$/) {
-      $python_line = "\n";                                  #empty lines require no translation!
+      $python_line = "\n";                                  #empty lines!
    }
    elsif ($line =~ /^\s*#/) {
       $python_line = $line;                                 #Comments are identical, only works if they are on their own
    }
    elsif ($line =~ /^\s*chomp/) {
-      $python_line = &_chomp($line);
+      $python_line = &_chomp($line);                        #translate chomp
    }
    else {
-      $python_line = "#" . $line;
+      $python_line = "#" . $line;                           #comment out everything else
    }
    #push converted python into array
    push (@python_code, $python_line);
 }
-&insert_libs(@import_python_libs);
+&insert_libs(@overhead_code);
 print @python_code;
+exit;
 
 sub _chomp() {
    my ($line) = @_;
@@ -69,7 +81,7 @@ sub _control_flow_statement() {
    $line =~ /$control_flow_keywords\s*(.*\(.*?\))\s*\{/;                        #collect only the conditions
    $condition = $1;
    if ($control_statement =~ /else/) {                      #else has no condition
-      $python_line = $control_statement . ":\n";
+      $python_line .= $control_statement . ":\n";
    }
    elsif ($control_statement =~ /for(?:each)?/) {
       if ($condition =~ /^\(.*?;.*?;.*?\)$/) {                                   #C style for loops
@@ -95,7 +107,7 @@ sub _control_flow_statement() {
          $control_variable =~ s/\s*my\s*//;  #the my keyword in the control variable is not needed
          if ($sequence =~ /\@ARGV/) {        #looping over built-in perl array
             $sequence = "sys.argv[1:]";
-            &add_lib("sys");                 #import sys
+            &_add_overhead_code("import sys");                 #import sys
          }
          elsif ($sequence =~ /([0-9]+)\s*\.\.\s*([0-9]+)/) {
             my $begin = $1;
@@ -135,8 +147,8 @@ sub _variable_assignment() {
 sub _variable_operation() {         #handles all things to do with variable operations
    my ($operation) = @_;
    if ($operation =~ /<STDIN>/) {
-      $operation =~ s/<STDIN>/sys.stdin.readline()/;
-      &add_lib("sys");
+      $operation =~ s/<STDIN>/raw_input()/;
+      &_add_overhead_code("import sys");
    }
    $operation =~ s/$perl_syntax_convention(?=\S)//g;
    
@@ -168,7 +180,7 @@ sub _conditions() {
 sub _string_formatting() {
    my ($line) = @_;
    my $string = "";
-   my $variable_search_regex = qr/\$[^\W]+(?:\s*(?:%|\*|\+|\/|-|\*\*)\s*\$[^\W]+)*/;    #store the regex to collect variables from a string
+   my $variable_search_regex = qr/\$[^\W]+(?:\s*(?:%|\*|\+|\/|-|\*\*)\s*\$[^\W]+)*/; #store the regex to collect variables from a string
    my @regex_matches = ($line =~ /(".*?"|$variable_search_regex)/g);  
    #match for each subsection of print string, basically removes all concats
 
@@ -184,13 +196,16 @@ sub _string_formatting() {
    my $i = 0;                                               #counter variable
    $string =~ s/($variable_search_regex)/"{".$i++."}"/eg;   #adds formatting to the string
    $string .= ".format(";                                   #adds the format to variables
-      foreach my $var (@var_formatting) {
-         $var =~ s/\$//g;
-         $string .= "$var,";                                #adding in var at a time
-      }
-      $string =~ s/,$//;
-      $string .= ")";                                       #close off the format parentheses
-      return $string;
+   foreach my $var (@var_formatting) {
+      $var =~ s/\$//g;
+      $string .= "$var,";                                #adding in var at a time
+   }
+   $string =~ s/,$//;
+   $string .= ")";                                       #close off the format parentheses
+   if ($string =~ /\.format\(\)/) {
+      $string =~ s/\.format\(\)//;                       #remove .format() if its not used
+   }
+   return $string;
 }
 
 sub _print() {
@@ -215,22 +230,22 @@ my ($indent_num) = $tab_indent;
 sub insert_libs() {
    my (@libs) = @_;
    foreach $lib (@libs) {
-      splice (@python_code, 1, 0, "import $lib\n");
+      splice (@python_code, 1, 0, "$lib\n");
    }
 }
 
 #add libraries to python if not added yet
-sub add_lib() {
+sub _add_overhead_code() {
    my ($library) = @_;  #input library
    my $seen = 0;
    #loop through each lib in list so far
-   foreach $import (@import_python_libs) {
+   foreach $import (@overhead_code) {
       if ($import eq $library) {
          $seen = 1;
          last;
       }
    }
    if ($seen == 0) {
-      push (@import_python_libs, $library);
+      unshift (@overhead_code, $library);    #unshift because we want #!/usr/bin/python2.7 -u on top
    }
 }

@@ -17,6 +17,7 @@ do
    for file in $folder/*.pl
    do
       file=`echo $file | sed s/'.pl$'/''/g`
+      echo "testing $file"
       if [ -e "$file.input" ]
          then
          output1=`diff <(perl $file.pl < $file.input) <(python $file.py < $file.input)`

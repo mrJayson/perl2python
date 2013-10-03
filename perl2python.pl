@@ -38,6 +38,9 @@ while ($line = <>) {
    elsif ($line =~ /^\s*#/) {
       $python_line = $line;                                 #Comments are identical, only works if they are on their own
    }
+   elsif ($line =~ /^\s*chomp/) {
+      $python_line = &_chomp($line);
+   }
    else {
       $python_line = "#" . $line;
    }
@@ -46,6 +49,15 @@ while ($line = <>) {
 }
 &insert_libs(@import_python_libs);
 print @python_code;
+
+sub _chomp() {
+   my ($line) = @_;
+   $line =~ /chomp\s*(.*?)\s*;/;
+   my $variable  = $1;
+   $variable = &_variable_operation($variable);
+   my $python_line = &_insert_indentation() . "$variable = $variable.rstrip()\n";
+   return $python_line ;
+}
 
 sub _control_flow_statement() {
    my ($line) = @_;
@@ -96,6 +108,7 @@ sub _control_flow_statement() {
       }
    }
    else {
+      $condition =~ s/ eq / == /g;
       $python_line .= $control_statement . " " . &_conditions($condition) . ":\n";
       $python_line =~ s/elsif/elif/;               #change perl elsif to python elif
    }                         
@@ -121,7 +134,12 @@ sub _variable_assignment() {
 
 sub _variable_operation() {         #handles all things to do with variable operations
    my ($operation) = @_;
+   if ($operation =~ /<STDIN>/) {
+      $operation =~ s/<STDIN>/sys.stdin.readline()/;
+      &add_lib("sys");
+   }
    $operation =~ s/$perl_syntax_convention(?=\S)//g;
+   
    return "($operation)";
 }
 

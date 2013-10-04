@@ -20,31 +20,33 @@ do
       echo "testing $file"
       if [ -e "$file.input" ]
          then
-         output1=`diff <(perl $file.pl < $file.input) <(python $file.py < $file.input)`
-         output2=`diff <(python <(./perl2python.pl $file.pl) < $file.input) <(python $file.py < $file.input)`
+         #output1=`diff <(perl $file.pl < $file.input) <(python $file.py < $file.input)`
+         #output2=`diff <(python <(./perl2python.pl $file.pl) < $file.input) <(python $file.py < $file.input)`
          output3=`diff <(python <(./perl2python.pl $file.pl) < $file.input) <(perl $file.pl < $file.input)`
       else
-         output1=`diff <(perl "$file.pl") <(python "$file.py")`
-         output2=`diff <(./perl2python.pl "$file.pl" | python) <(python "$file.py")`
+         #output1=`diff <(perl "$file.pl") <(python "$file.py")`
+         #output2=`diff <(./perl2python.pl "$file.pl" | python) <(python "$file.py")`
          output3=`diff <(./perl2python.pl "$file.pl" | python) <(perl "$file.pl")`
       fi
       if [ "$output1" != "" ] || [ "$output2" != "" ] || [ "$output3" != "" ]
       then
-         echo "ERROR IN $file"
+         echo "FAILED"
          if [ $dflag -eq 1 ]
          then
             echo "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
-            echo "output1"
-            echo $output1
-            echo "output2"
-            echo $output2
-            echo "output3"
+            #echo "output1"
+            #echo $output1
+            #echo "output2"
+            #echo $output2
+            echo "output"
             echo $output3
             echo
             echo
             echo
             echo "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
          fi
+      else
+         echo "PASSED"
       fi
    done
 done

@@ -6,6 +6,7 @@ $tab_indent = 0;
 $control_flow_keywords = qr/if|elsif|else|while|for(?:each)?/;
 $perl_syntax_convention = qr/[\$@%&]/;
 $operator_types = qr/(?:\+|\-|\*|\/|\.|%|\*\*)?=~?/;
+$variable_assignment_regex = qr/^\s*(?:$perl_syntax_convention(.*?)\s*($operator_types)\s*(.*)?|\$.*?(?:\+\+|\-\-));\s*$/;
 $perl_in_a_string = "";
 #%variable_types = ();
 
@@ -17,7 +18,7 @@ $perl_in_a_string =~ s/\}/}\n/g;                             #make sure closing 
 @perl_code = split (/(?<=\n)/, $perl_in_a_string);
 #print @perl_code;
 
-&_translation();                                            #translate perl to python
+&_translation("");                                            #translate perl to python
 
 &insert_libs(@overhead_code);                               
 print @python_code;                                         #print python for the world to see
@@ -55,19 +56,15 @@ sub _control_flow_statement() {
       $python_line .= $control_statement . ":\n";
    }
    elsif ($control_statement =~ /for(?:each)?/) {
-      if ($condition =~ /^\(.*?;.*?;.*?\)$/) {                                   #C style for loops
-         $condition =~ s/\((.*)\)/$1/;                      #remove the closing (), don't need them
-         my @for_components = split(/;/, $condition);       #break into 3 parts for easier processing
-         $for_components[0] =~ /^\$(\w+)\s*.*$/;            #collect var name, need to check for consistency later
-         my $var = $1;
-         $for_components[0] =~ /([0-9]+)\s*$/;              #collect begin of range
-         my $begin_range = $1;
-         $for_components[1] =~ /([0-9]+)\s*$/;              #collect end of range
-         my $end_range = $1;
-         $for_components[2] =~ /(-?\s*[0-9]+)\s*$/;         #collect incrementing
-         my $increment = $1;
-         $increment =~ s/\s//g;                             #remove any whitespaces in increment
-         $python_line .= "for $var in range($begin_range, $end_range, $increment):\n";
+      if ($condition =~ /^\((.*?;.*?;.*?)\)$/) {                                   #C style for loops
+         my @for_components = split(/;/, $1);       #break into 3 parts for easier processing
+         my $initialisation = $for_components[0];
+         $initialisation = &_variable_assignment($initialisation);
+         my $condition = &_conditions($for_components[1]);
+         my $increment = &_variable_assignment($for_components[2]);
+         $python_line .= "while $condition:\n";                            #initialisation is above the while statement
+         $python_line = "$initialisation" . $python_line . "$increment\n";          #hack to pass the increment part in return
+                                                                                    #gets pulled apart in above function
       }
       else {                                                                     #sequence iteration style
          #types of sequences: array, range, (hash) still need to implement hash
@@ -82,15 +79,14 @@ sub _control_flow_statement() {
             &_add_overhead_code("import sys");                 #import sys
          }
          elsif ($sequence =~ /\$\#ARGV/) {
-            $sequence = "xrange(len(sys.argv) - 1)";
+            $sequence = "range(len(sys.argv) - 1)";
             &_add_overhead_code("import sys");
-
          }
          elsif ($sequence =~ /([0-9]+)\s*\.\.\s*([0-9]+)/) {
             my $begin = $1;
             my $end = $2;
             $end++;                                #python range is not end inclusive
-            $sequence = "xrange($begin, $end)";    #xrange does not use as much memory as range
+            $sequence = "range($begin, $end)";    #xrange does not use as much memory as range
          }
          $sequence =~ s/[\$@]//g;
          $python_line .= "for " . $control_variable . " in " . $sequence . ":\n";
@@ -99,7 +95,6 @@ sub _control_flow_statement() {
    elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<>\s*\)/) {
       $python_line .= "for $1 in fileinput.input():\n";
       &_add_overhead_code("import fileinput");
-      #for line in fileinput.input():
    }
    elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<STDIN>\s*\)/) {
       $python_line .= "for $1 in sys.stdin:\n";
@@ -108,8 +103,7 @@ sub _control_flow_statement() {
       
       $python_line .= $control_statement . " " . &_conditions($condition) . ":\n";
       $python_line =~ s/elsif/elif/;               #change perl elsif to python elif
-      #print "$control_statement $condition\n";
-   }                         
+   }                     
    return $python_line;
 }
 
@@ -129,21 +123,23 @@ sub _return_type() {                                                            
 sub _variable_assignment() {
    my ($line) = @_;
    my $python_line = &_insert_indentation();
-   my $variable = "";
-   my $assignment_operator = "";
-   my $operation = "";
-   $line =~ /^\s*((?:my)?\s*$perl_syntax_convention\S*)\s*($operator_types)\s*(.*);$/;        #collect and split line
-   $variable = $1;                                                                  #left side of the =
-   $assignment_operator = $2;                                                       #the [+-*/.]=~? operator
-   $operation = $3;                                                                 #right side of the =
-   $variable = &_variable_declaration($variable);                                   #translate the 3 parts
-   $assignment_operator = &_assignment_operation($variable, $assignment_operator);
-   $operation = &_variable_operation($variable, $operation);
-
-   #$variable_types{$variable} = &_return_type($operation);                          #allocate type to variable
-
-   $python_line .= "$variable$assignment_operator$operation\n";
-   
+   if ($line =~ /^\s*\$.*?(?:\+\+|\-\-);?\s*$/) {                                       #inc/decrement statements
+      $python_line = &_inc_decrement_operator($line);
+   }
+   elsif ($line =~ /^\s*(?:my)?\s*$perl_syntax_convention(.*?)\s*($operator_types)\s*([^;]*)?/) {
+      my $variable = "";
+      my $assignment_operator = "";
+      my $operation = "";
+      $line =~ /^\s*(?:my)?\s*$perl_syntax_convention(.*?)\s*($operator_types)\s*([^;]*)?/;        #collect and split line
+      $variable = $1;                                                                  #left side of the =
+      $assignment_operator = $2;                                                       #the [+-*/.]=~? operator
+      $operation = $3;                                                                 #right side of the =
+      $variable = &_variable_declaration($variable);                                   #translate the 3 parts
+      $assignment_operator = &_assignment_operation($variable, $assignment_operator);
+      $operation = &_variable_operation($variable, $operation);
+      #$variable_types{$variable} = &_return_type($operation);                          #allocate type to variable
+      $python_line .= "$variable$assignment_operator$operation\n";
+   }
    return $python_line;
 }
 
@@ -160,6 +156,21 @@ sub _variable_operation() {         #handles all things to do with variable oper
    elsif ($operation =~ /\/(.*?)\//) {                #re.match
       $operation = "re.match(r'$1', $variable)";
       &_add_overhead_code("import re");
+   }
+   elsif ($operation =~ /\(?([0-9]+)\.\.([0-9]+)\)?/) { #range translation
+      $operation = "range($1, $2)";
+   }
+   elsif ($operation =~ /unshift\s*\(@(.*?)\s*,\s*(.*?)\)/) {
+      $operation = "$1.insert(0,$2)";
+   }
+   elsif ($operation =~ /shift\s*\(@(.*?)\)/) {
+      $operation = "$1.pop(0)";
+   }
+   elsif ($operation =~ /pop\s*\(@(.*?)\)/) {
+      $operation = "$1.pop(-1)";
+   }
+   elsif ($operation =~ /push\s*\(@(.*?)\s*,\s*(.*?)\)/) {
+      $operation = "$1.append($2)";
    }
    $operation =~ s/$perl_syntax_convention(?=\S)//g;
    return "($operation)";
@@ -209,9 +220,6 @@ sub _conditions() {
       if ($comparator =~ /$numeric_comparators/ ) {
          $variable =~ s/(\w+)/float($1)/;                                         #so far always convert to float
       }
-      #print "$variable\n";
-      #print "$comparator\n";
-      #print "$value\n";
       $condition = "$variable $comparator $value";                                           #restitch together
    }
    $condition =~ s/ eq / == /g;
@@ -227,29 +235,36 @@ sub _string_formatting() {
    my ($line) = @_;
    my $string = "";
    my $variable_search_regex = qr/\$[^\W]+(?:\s*(?:%|\*|\+|\/|-|\*\*)\s*\$[^\W]+)*/; #store the regex to collect variables from a string
-   my @regex_matches = ($line =~ /(".*?"|$variable_search_regex)/g);  
-   #match for each subsection of print string, basically removes all concats
-
-   my @var_formatting = ();
-   foreach my $match (@regex_matches) {
-      $string .= $match;                                    #concat all substrings into one
-      $string =~ s/([^\\]|^)"/$1/g;                         #removes all quote char
-      $string =~ s/([^\\]|^)"/$1/g;                         #removes all quote char, run twice because can't use lookbehind
-      #all print strings are now one long string without concats
+   if ($line =~ /".*?"/) {
+      my @regex_matches = ($line =~ /(".*?"|$variable_search_regex)/g);  
+      #match for each subsection of print string, basically removes all concats
+   
+      my @var_formatting = ();
+      foreach my $match (@regex_matches) {
+         $string .= $match;                                    #concat all substrings into one
+         $string =~ s/([^\\]|^)"/$1/g;                         #removes all quote char
+         $string =~ s/([^\\]|^)"/$1/g;                         #removes all quote char, run twice because can't use lookbehind
+         #all print strings are now one long string without concats
+      }
+      $string = "\"" . $string . "\"";                         #adds quotes to the begin and end of whole string
+      @var_formatting = ($string =~ /($variable_search_regex)/g); #collect variables for new formatting
+      my $i = 0;                                               #counter variable
+      $string =~ s/($variable_search_regex)/"{".$i++."}"/eg;   #adds formatting to the string
+      $string .= ".format(";                                   #adds the format to variables
+      foreach my $var (@var_formatting) {
+         $var =~ s/\$//g;
+         $string .= "$var,";                                   #adding in var at a time
+      }
+      $string =~ s/,$//;
+      $string .= ")";                                          #close off the format parentheses
+      if ($string =~ /\.format\(\)/) {
+         $string =~ s/\.format\(\)//;                          #remove .format() if its not used
+      }
    }
-   $string = "\"" . $string . "\"";                         #adds quotes to the begin and end of whole string
-   @var_formatting = ($string =~ /($variable_search_regex)/g); #collect variables for new formatting
-   my $i = 0;                                               #counter variable
-   $string =~ s/($variable_search_regex)/"{".$i++."}"/eg;   #adds formatting to the string
-   $string .= ".format(";                                   #adds the format to variables
-   foreach my $var (@var_formatting) {
-      $var =~ s/\$//g;
-      $string .= "$var,";                                   #adding in var at a time
-   }
-   $string =~ s/,$//;
-   $string .= ")";                                          #close off the format parentheses
-   if ($string =~ /\.format\(\)/) {
-      $string =~ s/\.format\(\)//;                          #remove .format() if its not used
+   else {
+      
+      $string = &_variable_operation("", $line);               #for anything other than strings,
+      $string = "str($string)";                                #make them strings
    }
    return $string;
 }
@@ -260,6 +275,7 @@ sub _print() {
    chomp ($line);
    my $python_line = &_insert_indentation();
    $line =~ s/^\s*print\s*//g;            #remove to leave only string component
+   $line =~ s/;\s*$//;
    $python_line .= "sys.stdout.write(" . &_string_formatting($line) . ")\n";
    return $python_line;                   #add finishing touches to print line
 }
@@ -297,8 +313,10 @@ sub _add_overhead_code() {
 }
 
 sub _translation() {
+   my ($closing_block_code) = @_;
    my $recurse = 0;                                            #flag to indicate when to recurse
    my %variable_scope = ();
+   my $push_to_next_level = "";
    #@perl_code and @python_code are global variables
    while (my $line = shift @perl_code) {
       my $python_line = "";
@@ -311,16 +329,20 @@ sub _translation() {
          $python_line = &_print($line);
          &_add_overhead_code("import sys");
       }
-      elsif ($line =~ /^\s*(my)?\s*$perl_syntax_convention\S+\s*$operator_types~?/) {
+      elsif ($line =~ /$variable_assignment_regex/) {
          $python_line = &_variable_assignment($line);          #translate variable assignments
       }
       elsif ($line =~ /^\s*(?:$control_flow_keywords)/) {
          $python_line = &_control_flow_statement($line);
+         if ($python_line =~ /.*?\n.*?\n\s*(.*?)\n/) {         #check for C style loops conversion, need to do something else
+            $push_to_next_level .= $1;                         #like, add increment at the end of the block
+            $python_line =~ s/(.*?\n.*?\n)\s*.*?\n/$1/;
+         }
          $recurse = 1;                                         #recurse one step down
          $tab_indent++;
       }
       elsif ($line =~ /^\s*\}\s*$/) {
-         $python_line = "";                                    #python equiv is just tab decrement
+         $python_line = &_insert_indentation() . $closing_block_code if $closing_block_code ne "";                                    #python equiv is just tab decrement
          $recurse = -1;                                        #return one step up
          $tab_indent--;
       }
@@ -339,15 +361,19 @@ sub _translation() {
       elsif ($line =~ /^\s*chomp/) {
          $python_line = &_chomp($line);                        #translate chomp
       }
-      elsif ($line =~ /^\s*\$\w+(?:\+\+|\-\-)/) {
-         $python_line = &_inc_decrement_operator($line);
-      }
       else {
-         $python_line = "#" . $line;                           #comment out everything else
+         $python_line = &_variable_operation("", $line) . "\n";#pass it to _variable_operation to see if it can do anything
+         $test_line = $line;
+         $test_line =~ s/$perl_syntax_convention(?=\S)//g;     #if not, then
+         if ($test_line eq $python_line) {
+            $python_line = "#" . $line;                        #comment it out
+         }
       }
       push (@python_code, $python_line);                       #add python_line into array
       if ($recurse == 1) {                                     #perform recursion after pushing this line
-         &_translation();
+         &_translation("$push_to_next_level");
+         $push_to_next_level = "";
+         $recurse = 0;                                         #reset recurse event
       }
       elsif ($recurse == -1) {
          return;

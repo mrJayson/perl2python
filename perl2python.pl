@@ -20,6 +20,7 @@ $perl_in_a_string =~ s/;[\s\n]*\}/;\n}\n/g;                             #make su
 
 &_translation("");                                            #translate perl to python
 
+
 &insert_libs(@overhead_code);                               
 print @python_code;                                         #print python for the world to see
 exit;
@@ -225,6 +226,7 @@ sub _variable_assignment() {
          $python_line .= &_hash_assignment($variable, $operation) . "\n";
 
       }
+
    }
    return $python_line;
 }
@@ -278,14 +280,15 @@ sub _variable_operation() {         #handles all things to do with variable oper
    elsif ($operation =~ /\$(.*?)\{(.*?)\}/) {            #hash identification stuff
       $operation = "$1\[$2\]";
    }
-   elsif ($operation =~ /\(.*?(?:,\s*.*?)*\)/) {         #change to python arrays
+   elsif ($operation =~ /(?<=\W)\(.*?(?:,\s*.*?)*\)/) {         #change to python arrays
       $operation =~ s/\(/[/g;
       $operation =~ s/\)/]/g;
    }
    elsif ($operation =~ /\$ARGV\[([0-9]+)\]/) {
       $operation = "sys.argv[$1 + 1]";
    }
-   $operation =~ s/$perl_syntax_convention(?=\S)//g;
+   $operation = &_variable($operation);
+   #$operation =~ s/$perl_syntax_convention(?=\S)//g;
    return "$operation";
 }
 
@@ -305,6 +308,10 @@ sub _variable() {                   #handle atomic variable translation, need to
    $variable =~ s/\{/[/g;                                #change perl hash symbol to python's
    $variable =~ s/\}/]/g;
    $variable =~ s/\$?#ARGV/len\(sys\.argv\) \- 1/g;
+   $variable =~ s/ARGV/sys.argv[1:]/g;
+   #print "VARIABLE: $variable\n";
+   $variable =~ s/join\(([\"'].*?[\"']),\s*(.*?)\)/$1.join($2)/g;
+   #print "VARIABLE: $variable\n";
    return $variable;
 }
 sub _variable_declaration() {       #handles variable declarations, decides where to declare the global/local stuff
@@ -362,7 +369,7 @@ sub _string_formatting() {
    my $string = "";
    my $variable_search_regex = qr/\$\w+\[.*?\]|\$(?:\w|\[|\]|\{|\}|\\"|\\'|)+(?:\s*(?:%|\*|\+|\/|-|\*\*|\[|\])\s*\$(?:\w|\[|\]|\{|\}|\\"|\\'|)+)*\]?/; #store the regex to collect variables from a string
    if ($line =~ /".*?"|$variable_search_regex/) {
-      my @regex_matches = ($line =~ /(".*?(?<=[^\\])"|$variable_search_regex)/g);  
+      my @regex_matches = ($line =~ /(join\([\"'].*?[\"'], @.*?\)|".*?(?<=[^\\])"|$variable_search_regex)/g);  
 
       #match for each subsection of print string, basically removes all concats
    
@@ -374,9 +381,9 @@ sub _string_formatting() {
          #all print strings are now one long string without concats
       }
       $string = "\"" . $string . "\"";                         #adds quotes to the begin and end of whole string
-      @var_formatting = ($string =~ /($variable_search_regex)/g); #collect variables for new formatting
+      @var_formatting = ($string =~ /(join\([\"'].*?[\"'], @.*?\)|$variable_search_regex)/g); #collect variables for new formatting
       my $i = 0;                                               #counter variable
-      $string =~ s/($variable_search_regex)/"{".$i++."}"/eg;   #adds formatting to the string
+      $string =~ s/(join\([\"'].*?[\"'], @.*?\)|$variable_search_regex)/"{".$i++."}"/eg;   #adds formatting to the string
       $string .= ".format(";                                   #adds the format to variables
       foreach my $var (@var_formatting) {
          $var =~ s/\$ARGV\[\$(\w+)\]/sys.argv[$1 + 1]/g;

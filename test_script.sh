@@ -30,7 +30,7 @@ do
       fi
       if [ "$output1" != "" ] || [ "$output2" != "" ] || [ "$output3" != "" ]
       then
-         echo "FAILED"
+         echo "   FAILED"
          if [ $dflag -eq 1 ]
          then
             echo "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"

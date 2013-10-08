@@ -1,8 +1,7 @@
 #!/usr/bin/perl -w
 
 #collatz conjecture
-$n = 10;
-
+$n = 387;
 while ($n > 1) {
 	if ($n % 2 == 1) {
 		$n = $n * 3 + 1;

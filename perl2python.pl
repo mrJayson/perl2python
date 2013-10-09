@@ -76,6 +76,12 @@ sub _translation() {
       elsif ($line =~ /^\s*chomp/) {
          $python_line = &_chomp($line);                        #translate chomp
       }
+      elsif ($line =~ /^\s*exit\(/) {
+         $python_line = &_insert_indentation() . "exit()\n";
+      }
+      elsif ($line =~ /^\s*open\(/) {
+         $python_line = &_open($line);
+      }
       else {
          $python_line = &_variable_operation("", $line) . "\n";#pass it to _variable_operation to see if it can do anything
          $test_line = $line;
@@ -98,6 +104,20 @@ sub _translation() {
    }
    return;                                                     #when perl_code runs out, finish translation,
                                                                #regardless of how deep
+}
+
+sub _open() {
+   my ($line) = @_;
+   my $python_line = &_insert_indentation();
+   #print "$line\n";
+   $line =~ s/open\((.*?),\"(.*?)\"/$1 = open($2, 'r'/g;
+#print "LINE: $line\n";
+   $line =~ s/<//g;
+   $line =~ s/>//g;
+   $line =~ s/\$//g;
+
+   $python_line = $line . "\n";
+   return $python_line;
 }
 
 sub _inc_decrement_operator() {
@@ -175,6 +195,9 @@ sub _control_flow_statement() {
    elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<STDIN>\s*\)/) {
       $python_line .= "for $1 in sys.stdin:\n";
    }
+   elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<(.*?)>\s*\)/) {
+      $python_line .= "for $1 in $2:\n";
+   }
    else {
       #print "LINELINELINE: $line\n";
       $python_line .= $control_statement . " " . &_conditions($condition) . ":\n";
@@ -199,7 +222,6 @@ sub _return_type() {                                                            
 sub _variable_assignment() {
    my ($line) = @_;
    my $python_line = &_insert_indentation();
-   #print "$line\n";
    if ($line =~ /^\s*\$.*?(?:\+\+|\-\-);?\s*$/) {                                       #inc/decrement statements
       $python_line = &_inc_decrement_operator($line);
    }
@@ -211,15 +233,18 @@ sub _variable_assignment() {
       #print "$assignment_operator\n";
       #print "$operation\n";
       if ($variable =~ /\$/) {                     #scalar variable
-         $variable = &_variable_declaration($variable);                                      #translate the 3 parts
+                                            #translate the 3 parts
          $assignment_operator = &_assignment_operation($variable, $assignment_operator);
          $operation = &_variable_operation($variable, $operation);
+         $variable = &_variable_declaration($variable);   
          $python_line .= "$variable$assignment_operator$operation\n";
       }
       elsif ($variable =~ /@/) {                   #array variable
-         $variable = &_variable_declaration($variable);                                      #translate the 3 parts
+
+                                              #translate the 3 parts
          $assignment_operator = &_assignment_operation($variable, $assignment_operator);
          $operation = &_variable_operation($variable, $operation);
+         $variable = &_variable_declaration($variable); 
          $python_line .= "$variable$assignment_operator$operation\n";
       }
       elsif ($variable =~ /%/) {                   #hash variable
@@ -274,7 +299,7 @@ sub _variable_operation() {         #handles all things to do with variable oper
    elsif ($operation =~ /pop\s*\(@(.*?)\)/) {                  #pop
       $operation = "$1.pop(-1)";
    }
-   elsif ($operation =~ /push\s*\(@(.*?)\s*,\s*(.*?)\)/) {     #push
+   elsif ($operation =~ /push\s*\(@?(.*?)\s*,\s*(.*?)\)/) {     #push
       $operation = "$1.append($2)";
    }
    elsif ($operation =~ /\$(.*?)\{(.*?)\}/) {            #hash identification stuff
@@ -287,7 +312,12 @@ sub _variable_operation() {         #handles all things to do with variable oper
    elsif ($operation =~ /\$ARGV\[([0-9]+)\]/) {
       $operation = "sys.argv[$1 + 1]";
    }
+   elsif ($variable =~ /@/ && $operation =~ /\(\)/) {
+      $operation = "[]";
+   }
+
    $operation = &_variable($operation);
+   #print "OPERATION: $operation\n";
    #$operation =~ s/$perl_syntax_convention(?=\S)//g;
    return "$operation";
 }
@@ -308,10 +338,9 @@ sub _variable() {                   #handle atomic variable translation, need to
    $variable =~ s/\{/[/g;                                #change perl hash symbol to python's
    $variable =~ s/\}/]/g;
    $variable =~ s/\$?#ARGV/len\(sys\.argv\) \- 1/g;
+   $variable =~ s/\$?#(\w+)/len\($1\) \- 1/g;
    $variable =~ s/ARGV/sys.argv[1:]/g;
-   #print "VARIABLE: $variable\n";
    $variable =~ s/join\(([\"'].*?[\"']),\s*(.*?)\)/$1.join($2)/g;
-   #print "VARIABLE: $variable\n";
    return $variable;
 }
 sub _variable_declaration() {       #handles variable declarations, decides where to declare the global/local stuff
@@ -350,6 +379,19 @@ sub _conditions() {
    }
    elsif ($condition =~ /\(([A-Za-z]+)\)/) {                  #just array in condition, means loop until empty
       $condition = "len($1) > 0";
+   }
+   else {
+      $condition =~ s/\((.*?)\)/$1/;
+      #print "COND: $condition\n";
+      my @components = split (/ /, $condition);
+      $components[0] = &_variable_declaration($components[0]);                                      #translate the 3 parts
+      $components[1] = &_assignment_operation($components[0], $components[1]);
+      $components[2] = &_variable_operation($components[0], $components[2]);
+      #foreach $p (@components) {
+      #   print "$p\n";
+      #}
+      $condition = "$components[0]$components[1]$components[2]";
+      #print "$condition\n";
    }
    
    $condition = &_variable($condition);

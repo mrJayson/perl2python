@@ -328,6 +328,10 @@ sub _variable_operation() {         #handles all things to do with variable oper
    elsif ($variable =~ /@/ && $operation =~ /\(\)/) {
       $operation = "[]";
    }
+   elsif ($variable =~ /@/ && $operation =~ /\([A-Za-z0-9]+(?:,\s*[A-Za-z0-9]+)*\)/) {
+      $operation =~ s/\(/[/g;
+      $operation =~ s/\)/]/g;
+   }
    $operation = &_variable($operation);
    #print "OPERATION: $operation\n";
    #$operation =~ s/$perl_syntax_convention(?=\S)//g;

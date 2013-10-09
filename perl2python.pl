@@ -7,16 +7,13 @@ $control_flow_keywords = qr/if|elsif|else|while|for(?:each)?/;
 $perl_syntax_convention = qr/[\$@%&]/;
 $operator_types = qr/(?:\+|\-|\*|\/|\.|%|\*\*)?=~?/;
 $variable_assignment_regex = qr/^\s*(?:$perl_syntax_convention(.*?)\s*($operator_types)\s*(.*)?|\$.*?(?:\+\+|\-\-));\s*$/;
-#$variable_match = qr /[\w\[\]\{\}\\"']+/;
 $perl_in_a_string = "";
 
 while ($line = <>) {
    $perl_in_a_string .= $line;                              #concat all lines in perl file together
 }
 $perl_in_a_string =~ s/;[\s\n]*\}/;\n}\n/g;                             #make sure closing curly brackets are on their own line
-#print "$perl_in_a_string";
 @perl_code = split (/(?<=\n)/, $perl_in_a_string);
-#print @perl_code;
 
 &_translation("");                                            #translate perl to python
 
@@ -110,20 +107,18 @@ sub _translation() {
                                                                #regardless of how deep
 }
 
-sub _reverse() {
+sub _reverse() {                                               #reverse funciton
    my ($line) = @_;
    my $python_line = &_insert_indentation();
-   $line =~ s/reverse\s*[\[\(]\$?(.*?)[\]\)]/$1\[::-1\]/;
+   $line =~ s/reverse\s*[\[\(]\$?(.*?)[\]\)]/$1\[::-1\]/;      #use python's hacky way of reversing string
    $python_line .= $line . "\n";
    return $python_line;
 }
 
-sub _open() {
+sub _open() {                                                  #convert perl's open to python's
    my ($line) = @_;
    my $python_line = &_insert_indentation();
-   #print "$line\n";
    $line =~ s/open\((.*?),\"(.*?)\"/$1 = open($2, 'r'/g;
-#print "LINE: $line\n";
    $line =~ s/<//g;
    $line =~ s/>//g;
    $line =~ s/\$//g;
@@ -201,11 +196,11 @@ sub _control_flow_statement() {
          $python_line .= "for " . $control_variable . " in " . $sequence . ":\n";
       }
    }
-   elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<>\s*\)/) {
+   elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<>\s*\)/) {        #the <> file handle
       $python_line .= "for $1 in fileinput.input():\n";
       &_add_overhead_code("import fileinput");
    }
-   elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<STDIN>\s*\)/) {
+   elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<STDIN>\s*\)/) {   #STDIN file handle
       $python_line .= "for $1 in sys.stdin:\n";
    }
    elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<(.*?)>\s*\)/) {   #any other file handle
@@ -242,24 +237,21 @@ sub _variable_assignment() {
       my $variable = $1;                                                                  #left side of the =
       my $assignment_operator = $2;                                                       #the [+-*/.]=~? operator
       my $operation = $3;                                                                 #right side of the =
-      #print "$variable\n";
-      #print "$assignment_operator\n";
-      #print "$operation\n";
-      if ($variable =~ /\$/) {                     #scalar variable
-                                              #translate the 3 parts
+      if ($variable =~ /\$/) {                                       #scalar variable
+                                                                     #translate the 3 parts
          $assignment_operator = &_assignment_operation($variable, $assignment_operator);
          $operation = &_variable_operation($variable, $operation);
          $variable = &_variable_declaration($variable);   
          $python_line .= "$variable$assignment_operator$operation\n";
       }
-      elsif ($variable =~ /@/) {                   #array variable
-                                              #translate the 3 parts
+      elsif ($variable =~ /@/) {                                     #array variable
+                                                                     #translate the 3 parts
          $assignment_operator = &_assignment_operation($variable, $assignment_operator);
          $operation = &_variable_operation($variable, $operation);
          $variable = &_variable_declaration($variable); 
          $python_line .= "$variable$assignment_operator$operation\n";
       }
-      elsif ($variable =~ /%/) {                   #hash variable
+      elsif ($variable =~ /%/) {                                     #hash variable
          $python_line .= &_hash_assignment($variable, $operation) . "\n";
 
       }
@@ -268,7 +260,7 @@ sub _variable_assignment() {
    return $python_line;
 }
 
-sub _hash_assignment() {
+sub _hash_assignment() {                                             #hash assignment translation
    my ($variable, $operation) = @_;
    $variable = &_variable_declaration($variable);
    if ($operation =~ /\(\)/) {
@@ -284,7 +276,6 @@ sub _hash_assignment() {
 
 sub _variable_operation() {         #handles all things to do with variable operations
    my ($variable, $operation) = @_;
-   #print "$variable $operation\n";
    if ($operation =~ /<STDIN>/) {                     #convert <STDIN> hardcoded
       $operation =~ s/<STDIN>/sys.stdin.readline()/;
       &_add_overhead_code("import sys");
@@ -322,19 +313,17 @@ sub _variable_operation() {         #handles all things to do with variable oper
       $operation =~ s/\(/[/g;
       $operation =~ s/\)/]/g;
    }
-   elsif ($operation =~ /\$ARGV\[([0-9]+)\]/) {
+   elsif ($operation =~ /\$ARGV\[([0-9]+)\]/) {                #converting ARGV access
       $operation = "sys.argv[$1 + 1]";
    }
-   elsif ($variable =~ /@/ && $operation =~ /\(\)/) {
+   elsif ($variable =~ /@/ && $operation =~ /\(\)/) {          #convert empty array
       $operation = "[]";
    }
-   elsif ($variable =~ /@/ && $operation =~ /\([A-Za-z0-9]+(?:,\s*[A-Za-z0-9]+)*\)/) {
+   elsif ($variable =~ /@/ && $operation =~ /\([A-Za-z0-9]+(?:,\s*[A-Za-z0-9]+)*\)/) { #convert non-empty array assignment
       $operation =~ s/\(/[/g;
       $operation =~ s/\)/]/g;
    }
    $operation = &_variable($operation);
-   #print "OPERATION: $operation\n";
-   #$operation =~ s/$perl_syntax_convention(?=\S)//g;
    return "$operation";
 }
 
@@ -357,19 +346,12 @@ sub _variable() {                   #handle atomic variable translation, need to
    $variable =~ s/\$?#(\w+)/len\($1\) \- 1/g;
    $variable =~ s/ARGV/sys.argv[1:]/g;
    $variable =~ s/join\(([\"'].*?[\"']),\s*(.*?)\)/$1.join($2)/g;
-   #print "VAR: $variable\n";
    $variable =~ s/reverse\s*[\[\(](.*?)[\]\)]/$1\[::-1\]/;
    $variable =~ s/;\s*$//;
    return $variable;
 }
 sub _variable_declaration() {       #handles variable declarations, decides where to declare the global/local stuff
    my ($variable) = @_;
-   if ($variable =~ /^\s*my\s*/) {
-      #not done yet
-   }
-   else {
-
-   }
    if ($variable =~ /\$(.*?)\{(.*?)\}/) {
       $variable = "$1\[$2\]";
    }
@@ -408,22 +390,15 @@ sub _conditions() {
       my $condition = $1;
    }
    else {
-      $condition =~ s/\((.*?)\)/$1/;
+      $condition =~ s/\((.*?)\)/$1/;                           #to handle any generic comparision condition
       
       my @components = split (/ /, $condition);
       $components[0] = &_variable_declaration($components[0]);                                      #translate the 3 parts
-      #$components[1] = &_assignment_operation($components[0], $components[1]);
       $components[2] = &_variable_operation($components[0], $components[2]);
-      #foreach $p (@components) {
-      #   print "$p\n";
-      #}
-      #print "COND: $condition\n";
       $condition = "$components[0]$components[1]$components[2]";
-      #print "$condition\n";
    }
    
    $condition = &_variable($condition);
-   #print "CONDITION: $condition\n";
    $condition =~ s/ eq / == /g;                    #change perl comparators
    $condition =~ s/ ne / != /g;
    $condition =~ s/ lt / < /g;
@@ -435,7 +410,6 @@ sub _conditions() {
 
 sub _string_formatting() {
    my ($line) = @_;
-   #print "$line\n";
    my $string = "";
    my $variable_search_regex = qr/\$\w+\[.*?\]|\$(?:\w|\[|\]|\{|\}|\\"|\\'|)+(?:\s*(?:%|\*|\+|\/|-|\*\*|\[|\])\s*\$(?:\w|\[|\]|\{|\}|\\"|\\'|)+)*\]?/; #store the regex to collect variables from a string
    if ($line =~ /".*?"|$variable_search_regex/) {

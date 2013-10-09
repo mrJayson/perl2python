@@ -1,3 +1,15 @@
+commit f2b4df0088deb2bfe613fa6e5a19cae1978b747f
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 22:25:29 2013 +1100
+
+    fixed minor typos, reorganised directory
+
+commit 71a39d1f2bbd4a62aa152cdf14e7b57a304973f7
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 16:09:59 2013 +1100
+
+    added diary.txt
+
 commit d74017f879cc9d15e5995cb5052fee5d49127fb4
 Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
 Date:   Wed Oct 9 15:55:48 2013 +1100

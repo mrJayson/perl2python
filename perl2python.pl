@@ -45,6 +45,7 @@ sub _translation() {
 
       }
       elsif ($line =~ /$variable_assignment_regex/) {
+
          $python_line = &_variable_assignment($line);          #translate variable assignments
       }
       elsif ($line =~ /^\s*(?:$control_flow_keywords)/) {
@@ -155,6 +156,7 @@ sub _control_flow_statement() {
    my $condition = "";
    chomp ($line);
    my $python_line = &_insert_indentation();
+
    $line =~ /^\s*(\w+)/;
    my $control_statement = $1;
    $line =~ /$control_flow_keywords\s*(.*\(.*?\))\s*\{/;                        #collect only the conditions
@@ -210,7 +212,6 @@ sub _control_flow_statement() {
       $python_line .= "for $1 in $2:\n";
    }
    else {
-      #print "LINELINELINE: $line\n";
       $python_line .= $control_statement . " " . &_conditions($condition) . ":\n";
       $python_line =~ s/elsif/elif/;               #change perl elsif to python elif
    }                     
@@ -232,6 +233,7 @@ sub _return_type() {                                                            
 
 sub _variable_assignment() {
    my ($line) = @_;
+
    my $python_line = &_insert_indentation();
    if ($line =~ /^\s*\$.*?(?:\+\+|\-\-);?\s*$/) {                                       #inc/decrement statements
       $python_line = &_inc_decrement_operator($line);
@@ -244,14 +246,13 @@ sub _variable_assignment() {
       #print "$assignment_operator\n";
       #print "$operation\n";
       if ($variable =~ /\$/) {                     #scalar variable
-                                            #translate the 3 parts
+                                              #translate the 3 parts
          $assignment_operator = &_assignment_operation($variable, $assignment_operator);
          $operation = &_variable_operation($variable, $operation);
          $variable = &_variable_declaration($variable);   
          $python_line .= "$variable$assignment_operator$operation\n";
       }
       elsif ($variable =~ /@/) {                   #array variable
-
                                               #translate the 3 parts
          $assignment_operator = &_assignment_operation($variable, $assignment_operator);
          $operation = &_variable_operation($variable, $operation);
@@ -283,6 +284,7 @@ sub _hash_assignment() {
 
 sub _variable_operation() {         #handles all things to do with variable operations
    my ($variable, $operation) = @_;
+   #print "$variable $operation\n";
    if ($operation =~ /<STDIN>/) {                     #convert <STDIN> hardcoded
       $operation =~ s/<STDIN>/sys.stdin.readline()/;
       &_add_overhead_code("import sys");
@@ -298,8 +300,8 @@ sub _variable_operation() {         #handles all things to do with variable oper
       $operation = "re.match(r'$1', $variable)";
       &_add_overhead_code("import re");
    }
-   elsif ($operation =~ /\(?([0-9]+)\.\.([0-9]+)\)?/) { #range translation
-      $operation = "range($1, $2)";
+   elsif ($operation =~ /\(?([0-9]+)\.\.([0-9]+|\$\w+)\)?/) { #range translation
+      $operation = "range($1, int($2))";
    }
    elsif ($operation =~ /unshift\s*\(@(.*?)\s*,\s*(.*?)\)/) {  #unshift
       $operation = "$1.insert(0,$2)";
@@ -326,7 +328,6 @@ sub _variable_operation() {         #handles all things to do with variable oper
    elsif ($variable =~ /@/ && $operation =~ /\(\)/) {
       $operation = "[]";
    }
-
    $operation = &_variable($operation);
    #print "OPERATION: $operation\n";
    #$operation =~ s/$perl_syntax_convention(?=\S)//g;
@@ -399,16 +400,20 @@ sub _conditions() {
    elsif ($condition =~ /\(([0-9]+)\)/) {                      #if just a number, means always true
       $condition =~ "$1";
    }
+   elsif ($condition =~ /\(@(\w+)\)/) {                        #condition should be while array not empty
+      my $condition = $1;
+   }
    else {
       $condition =~ s/\((.*?)\)/$1/;
-      #print "COND: $condition\n";
+      
       my @components = split (/ /, $condition);
       $components[0] = &_variable_declaration($components[0]);                                      #translate the 3 parts
-      $components[1] = &_assignment_operation($components[0], $components[1]);
+      #$components[1] = &_assignment_operation($components[0], $components[1]);
       $components[2] = &_variable_operation($components[0], $components[2]);
       #foreach $p (@components) {
       #   print "$p\n";
       #}
+      #print "COND: $condition\n";
       $condition = "$components[0]$components[1]$components[2]";
       #print "$condition\n";
    }

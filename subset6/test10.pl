@@ -1,7 +1,5 @@
 #!/usr/bin/perl -w
 
-#tail.pl
-
 @files = ();
 $N = 10;
 

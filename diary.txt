@@ -1,0 +1,149 @@
+commit d74017f879cc9d15e5995cb5052fee5d49127fb4
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 15:55:48 2013 +1100
+
+    added comments and tidied up code
+
+commit 1cc6b3093e06832d31e27ac81cddda97654229d3
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 15:46:28 2013 +1100
+
+    total of 10 tests now
+
+commit dc5fec476dd65a02904c3141aa6e89cf4a8be09a
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 15:30:39 2013 +1100
+
+    added demo10
+
+commit b9a90ae86ef642bae0bec40bb29a0a6880896836
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 14:38:01 2013 +1100
+
+    added reverse functionality, added demo09
+
+commit e7d110a63979c2867265861d80c560a5e4cc3de5
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 13:55:38 2013 +1100
+
+    added demo08
+
+commit ef91267e1aec3eb95aaa20409f898697ecb0977d
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 13:41:49 2013 +1100
+
+    rename file, typo
+
+commit b81441293c5e18dbcc0ea7a140c4f7491cf544e5
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 13:40:48 2013 +1100
+
+    total of 7 demos, added basic open functionality
+
+commit eca16ac66a868610c4b9da82aee1f5582ab704ce
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 09:44:31 2013 +1100
+
+    fudged join into working
+
+commit ee1abddd8f77873637b13f70ade222a2da3dc20a
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 9 01:44:16 2013 +1100
+
+    fixed lots of little things, added more demo tests
+
+commit e2d95369c42a554aaeebc01683391c65448e0bfe
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Tue Oct 8 17:24:10 2013 +1100
+
+    added simple hash assignment, handle simple regex capture groups, added tests, and some demos, fixed some array assignment, fixed printing variables inside string, fixed some hash printing, fixed if statement translation, changed C style for loop translation
+
+commit 5429cbaeceed4b66281bb94f7164d31be098298a
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Fri Oct 4 23:59:19 2013 +1000
+
+    added more functionality to conversion, changed for loop translation method, added shift/unshift/pop/push methods, fixed print of misc stuff, added recursive element when indenting in a block of code, refactored variable assignment and related
+
+commit eabcce1844ec53f84e02d46168c52b0eece3ed55
+Author: Jason Huang <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Fri Oct 4 13:06:06 2013 +1000
+
+    completed subset 4 tests, added lots of little things
+
+commit 11954e0ef0e2e39210befe01538a0c74343492a1
+Author: Jason <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Thu Oct 3 22:48:17 2013 +1000
+
+    added basic =~ translation, added basic <> translation, refactored structure of the overall code a bit, subset 4 still not fully completed yet
+
+commit 041012e5b15a18206a80d083fa313697575deae4
+Author: Jason <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Thu Oct 3 19:53:25 2013 +1000
+
+    added 'next' translation, fixed test script to work with stdins, refactored perl code handling method
+
+commit a70a3d99e3ab614723905377f9f23cc98769c90c
+Author: Jason <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Thu Oct 3 14:16:56 2013 +1000
+
+    added subset 4 tests
+
+commit 91d808d714de4b0af40acdb2888684679eb811da
+Author: Jason <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Thu Oct 3 12:47:31 2013 +1000
+
+    added chomp translation, added STDIN translation change eq in string comparison
+
+commit fbd71e5113ea4b1f951d4dcd4b34145e8ce3c474
+Author: Jason <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Thu Oct 3 08:28:34 2013 +1000
+
+    handles foreach statements better, changed print statements to sys.stdout.write statements, passes all tests except cookie(with the stdin stuff)
+
+commit 0811ad2046b93241abb6a2731723093ac665a5c8
+Author: Jason <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 2 22:42:02 2013 +1000
+
+    redid variable assignments, added subset3 tests but now automated testing is broken since one of them requires STDIN
+
+commit fe63d4e48935808d86cb20fe9aa6cfffaae7a515
+Author: Jason <jasonhuang@Jason-Huangs-MacBook-Pro.local>
+Date:   Wed Oct 2 17:09:07 2013 +1000
+
+    added for loop translation, basic C style for loop and sequence iteration
+
+commit 2b8c3519343a0861e5129639b6ad9da58340e3fd
+Author: Jason <jasonhuang@192-168-1-15.tpgi.com.au>
+Date:   Wed Oct 2 12:22:04 2013 +1000
+
+    completed subset 2, added standard tests, refactored print function into 2 functions, added tab indenting
+
+commit 4d2d19bc2495b7eaab2029c18f295f9bb3d4cc33
+Author: Jason Huang <jhua488@cse.unsw.EDU.AU>
+Date:   Wed Oct 2 09:13:40 2013 +1000
+
+    added ability for string format to recognise % and **, added one test to check
+
+commit 79831883d625a2d55418c1a9044014bb779e03e8
+Author: Jason Huang <jhua488@cse.unsw.EDU.AU>
+Date:   Wed Oct 2 00:44:48 2013 +1000
+
+    added an automated testing script, redid printing and completed variables, subsets 0 and 1 works according to tests
+
+commit be09efee7d63ab4ace2c69bf3a6f8fe35b5ed61b
+Author: Jason Huang <jhua488@cse.unsw.EDU.AU>
+Date:   Tue Oct 1 00:33:03 2013 +1000
+
+    began working on variables still need to fix variables on printing
+
+commit 0384d189eca2f71dbc417f653a58016d57c46132
+Author: Jason Huang <jhua488@cse.unsw.EDU.AU>
+Date:   Mon Sep 30 18:14:26 2013 +1000
+
+    made refinements to print conversion and added a test
+
+commit 864e633542977288d29fe05920081bf78014f811
+Author: Jason Huang <jhua488@cse.unsw.EDU.AU>
+Date:   Mon Sep 30 14:06:25 2013 +1000
+
+    first commit, subset 0 (print lines) are working

@@ -82,6 +82,9 @@ sub _translation() {
       elsif ($line =~ /^\s*open\(/) {
          $python_line = &_open($line);
       }
+      elsif ($line =~ /^\s*reverse/) {
+         $python_line = &_reverse($line);
+      }
       else {
          $python_line = &_variable_operation("", $line) . "\n";#pass it to _variable_operation to see if it can do anything
          $test_line = $line;
@@ -104,6 +107,14 @@ sub _translation() {
    }
    return;                                                     #when perl_code runs out, finish translation,
                                                                #regardless of how deep
+}
+
+sub _reverse() {
+   my ($line) = @_;
+   my $python_line = &_insert_indentation();
+   $line =~ s/reverse\s*[\[\(]\$?(.*?)[\]\)]/$1\[::-1\]/;
+   $python_line .= $line . "\n";
+   return $python_line;
 }
 
 sub _open() {
@@ -195,7 +206,7 @@ sub _control_flow_statement() {
    elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<STDIN>\s*\)/) {
       $python_line .= "for $1 in sys.stdin:\n";
    }
-   elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<(.*?)>\s*\)/) {
+   elsif ($control_statement =~ /while/ && $condition =~ /\(\s*\$(\w+)\s*=\s*<(.*?)>\s*\)/) {   #any other file handle
       $python_line .= "for $1 in $2:\n";
    }
    else {
@@ -341,6 +352,9 @@ sub _variable() {                   #handle atomic variable translation, need to
    $variable =~ s/\$?#(\w+)/len\($1\) \- 1/g;
    $variable =~ s/ARGV/sys.argv[1:]/g;
    $variable =~ s/join\(([\"'].*?[\"']),\s*(.*?)\)/$1.join($2)/g;
+   #print "VAR: $variable\n";
+   $variable =~ s/reverse\s*[\[\(](.*?)[\]\)]/$1\[::-1\]/;
+   $variable =~ s/;\s*$//;
    return $variable;
 }
 sub _variable_declaration() {       #handles variable declarations, decides where to declare the global/local stuff
@@ -370,15 +384,20 @@ sub _conditions() {
       my $value = $3;
       if ($comparator =~ /$string_comparators/ ) {  #convert if need be
          $variable =~ s/$variable/str($variable)/g;
+         $value =~ s/$value/str($value)/g;
       }
       if ($comparator =~ /$numeric_comparators/ ) {
-         $variable =~ s/(\w+)/float($1)/g;                                         #so far always convert to float
+         $variable =~ s/(\w+)/float($1)/g; 
+         $value =~ s/(\w+)/float($1)/g;                                         #so far always convert to float
       }
       $condition = "$variable $comparator $value";                                           #restitch together
 
    }
    elsif ($condition =~ /\(([A-Za-z]+)\)/) {                  #just array in condition, means loop until empty
       $condition = "len($1) > 0";
+   }
+   elsif ($condition =~ /\(([0-9]+)\)/) {                      #if just a number, means always true
+      $condition =~ "$1";
    }
    else {
       $condition =~ s/\((.*?)\)/$1/;

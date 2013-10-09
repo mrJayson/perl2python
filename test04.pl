@@ -8,7 +8,7 @@ if ($number == 0) {
 	$number = $number + 1;
 }
 
-if ($number == 0) {
+if ($number == 0 && $number != 1) {
 	print "this is still 0!\n";
 }
 elsif ($number == 1) {

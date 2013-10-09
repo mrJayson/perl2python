@@ -19,7 +19,7 @@ $perl_in_a_string =~ s/;[\s\n]*\}/;\n}\n/g;                             #make su
 
 
 &insert_libs(@overhead_code);                               
-print @python_code;                                         #print python for the world to see
+#print @python_code;                                         #print python for the world to see
 exit;
 
 sub _translation() {
@@ -399,12 +399,16 @@ sub _conditions() {
    }
    
    $condition = &_variable($condition);
+   $condition =~ s/ && / and /g;                   #change and or
+   $condition =~ s/ \|\| / or /g;
+
    $condition =~ s/ eq / == /g;                    #change perl comparators
    $condition =~ s/ ne / != /g;
    $condition =~ s/ lt / < /g;
    $condition =~ s/ le / <= /g;
    $condition =~ s/ gt / > /g;
    $condition =~ s/ ge / >= /g;
+   print "$condition\n";
    return $condition;
 }
 
